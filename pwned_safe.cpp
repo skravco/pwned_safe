@@ -6,101 +6,94 @@
 
 using namespace std;
 
-// Function to create a new record
-void createNewRecord(const string &website, const string &password) {
-  sqlite3 *db;
-  char *errorMessage = nullptr;
+sqlite3* db = nullptr;
 
-  // Open or create the database
-  int status = sqlite3_open("passwords.db", &db);
-  if (status) {
-    cerr << "Error opening database: " << sqlite3_errmsg(db) << endl;
-    return;
-  }
-
-  // Create SQL statement to create the table if it doesn't exist
-  string createTableSQL = "CREATE TABLE IF NOT EXISTS passwords ("
-                          "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                          "website TEXT NOT NULL,"
-                          "password TEXT NOT NULL)";
-
-  // Execute SQL statement to create the table
-  status = sqlite3_exec(db, createTableSQL.c_str(), nullptr, 0, &errorMessage);
-  if (status != SQLITE_OK) {
-    cerr << "Error creating table: " << errorMessage << endl;
-    sqlite3_free(errorMessage);
-    sqlite3_close(db);
-    return;
-  }
-
-  // Create SQL statement to insert data into the table
-  string insertSQL = "INSERT INTO passwords (website, password) VALUES (?, ?)";
-
-  // Prepare the SQL statement
-  sqlite3_stmt *stmt;
-  status = sqlite3_prepare_v2(db, insertSQL.c_str(), -1, &stmt, nullptr);
-  if (status != SQLITE_OK) {
-    cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
-    sqlite3_close(db);
-    return;
-  }
-
-  // Bind parameters to the prepared statement
-  status = sqlite3_bind_text(stmt, 1, website.c_str(), -1, SQLITE_STATIC);
-  if (status != SQLITE_OK) {
-    cerr << "Error binding website parameter: " << sqlite3_errmsg(db) << endl;
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    return;
-  }
-  status = sqlite3_bind_text(stmt, 2, password.c_str(), -1, SQLITE_STATIC);
-  if (status != SQLITE_OK) {
-    cerr << "Error binding password parameter: " << sqlite3_errmsg(db) << endl;
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    return;
-  }
-
-  // Execute the SQL statement
-  status = sqlite3_step(stmt);
-  if (status != SQLITE_DONE) {
-    cerr << "Error executing SQL statement: " << sqlite3_errmsg(db) << endl;
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    return;
-  }
-
-  // Finalize the prepared statement and close the database
-  sqlite3_finalize(stmt);
-  sqlite3_close(db);
-
-  cout << "New record created successfully" << endl;
-}
-
-// Function to display all records
-void displayAllRecords() {
+// Open Db or Create if Not Exist
+sqlite3* openDB(){
     sqlite3* db;
-    char* errorMessage = nullptr;
-    
-    // Open the database
     int status = sqlite3_open("passwords.db", &db);
-    if (status) {
-        cerr << "Error opening database: " << sqlite3_errmsg(db) << endl;
+    if (status != SQLITE_OK){
+        cerr << "Error opening DB: " << sqlite3_errmsg(db) << endl;
+        return nullptr;
+    }
+    return db;
+}
+ // create a new record
+void createNewRecord(const string &website, const string &password) {
+    if (!db) {
+        cerr << "Database is not open." << endl;
         return;
     }
-    
-    // Create SQL statement to select all records from the table
-    string selectSQL = "SELECT * FROM passwords";
-    
+    char *errorMessage = nullptr;
+
+    // Create SQL statement to create the table if it doesn't exist
+    string createTableSQL = "CREATE TABLE IF NOT EXISTS passwords ("
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                            "website TEXT NOT NULL,"
+                            "password TEXT NOT NULL)";
+
+    // Execute SQL statement to create the table
+    int status = sqlite3_exec(db, createTableSQL.c_str(), nullptr, 0, &errorMessage);
+    if (status != SQLITE_OK) {
+        cerr << "Error creating table: " << errorMessage << endl;
+        sqlite3_free(errorMessage);
+        return;
+    }
+
+    // Create SQL statement to insert data into the table
+    string insertSQL = "INSERT INTO passwords (website, password) VALUES (?, ?)";
+
     // Prepare the SQL statement
-    sqlite3_stmt* stmt;
-    status = sqlite3_prepare_v2(db, selectSQL.c_str(), -1, &stmt, nullptr);
+    sqlite3_stmt *stmt;
+    status = sqlite3_prepare_v2(db, insertSQL.c_str(), -1, &stmt, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
-        sqlite3_close(db);
         return;
     }
-    
+
+    // Bind parameters to the prepared statement
+    status = sqlite3_bind_text(stmt, 1, website.c_str(), -1, SQLITE_STATIC);
+    if (status != SQLITE_OK) {
+        cerr << "Error binding website parameter: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+    status = sqlite3_bind_text(stmt, 2, password.c_str(), -1, SQLITE_STATIC);
+    if (status != SQLITE_OK) {
+        cerr << "Error binding password parameter: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+
+    // Execute the SQL statement
+    status = sqlite3_step(stmt);
+    if (status != SQLITE_DONE) {
+        cerr << "Error executing SQL statement: " << sqlite3_errmsg(db) << endl;
+        sqlite3_finalize(stmt);
+        return;
+    }
+
+    // Finalize the prepared statement
+    sqlite3_finalize(stmt);
+    cout << "New record created successfully" << endl;
+}
+
+// display all records
+void displayAllRecords() {
+    if (!db) {
+        cerr << "Database is not open." << endl;
+        return;
+    }
+    char* errorMessage = nullptr;
+    // Create SQL statement to select all records from the table
+    string selectSQL = "SELECT * FROM passwords";
+    // Prepare the SQL statement
+    sqlite3_stmt* stmt;
+    int status = sqlite3_prepare_v2(db, selectSQL.c_str(), -1, &stmt, nullptr);
+    if (status != SQLITE_OK) {
+        cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
+        return;
+    }
     // Execute the SQL statement and display the results
     cout << "ID\tWebsite\t\tPassword" << endl;
     cout << "--------------------------------" << endl;
@@ -110,42 +103,34 @@ void displayAllRecords() {
         const unsigned char* password = sqlite3_column_text(stmt, 2);
         cout << id << "\t" << website << "\t" << password << endl;
     }
-    
     // Check for errors or end of rows
     if (status != SQLITE_DONE) {
         cerr << "Error executing SQL statement: " << sqlite3_errmsg(db) << endl;
     }
-    
-    // Finalize the prepared statement and close the database
+    // Finalize the prepared statement
     sqlite3_finalize(stmt);
-    sqlite3_close(db);
 }
 
-// Function to display record by ID
+// display record by ID
 void displayRecordById(int id) {
-    sqlite3* db;
-    char* errorMessage = nullptr;
-    
-    // Open the database
-    int status = sqlite3_open("passwords.db", &db);
-    if (status) {
-        cerr << "Error opening database: " << sqlite3_errmsg(db) << endl;
+    if (!db) {
+        cerr << "Database is not open." << endl;
         return;
     }
-    
+    char* errorMessage = nullptr;
+
     // Create SQL statement to select record with the given ID
     stringstream selectSQL;
     selectSQL << "SELECT * FROM passwords WHERE id = " << id;
-    
+
     // Prepare the SQL statement
     sqlite3_stmt* stmt;
-    status = sqlite3_prepare_v2(db, selectSQL.str().c_str(), -1, &stmt, nullptr);
+    int status = sqlite3_prepare_v2(db, selectSQL.str().c_str(), -1, &stmt, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
-        sqlite3_close(db);
         return;
     }
-    
+
     // Execute the SQL statement and display the result
     cout << "ID\tWebsite\t\tPassword" << endl;
     cout << "--------------------------------" << endl;
@@ -155,32 +140,28 @@ void displayRecordById(int id) {
         const unsigned char* password = sqlite3_column_text(stmt, 2);
         cout << id << "\t" << website << "\t" << password << endl;
     }
-    
+
     // Check for errors or end of rows
     if (status != SQLITE_DONE) {
         cerr << "Error executing SQL statement: " << sqlite3_errmsg(db) << endl;
     }
-    
-    // Finalize the prepared statement and close the database
+
+    // Finalize the prepared statement
     sqlite3_finalize(stmt);
-    sqlite3_close(db);
 }
 
+// Function to update record by ID
 void updateRecordById(int id) {
+    if (!db) {
+        cerr << "Database is not open." << endl;
+        return;
+    }
     string password;
 
     cout << "Enter new password: " << endl;
     getline(cin, password);
 
-    sqlite3* db;
     char* errorMessage = nullptr;
-
-    // Open the database
-    int status = sqlite3_open("passwords.db", &db);
-    if (status != SQLITE_OK) {
-        cerr << "Error opening database: " << sqlite3_errmsg(db) << endl;
-        return;
-    }
 
     // Create SQL statement to update password for the given ID
     stringstream updateSQL;
@@ -188,10 +169,9 @@ void updateRecordById(int id) {
 
     // Prepare the SQL statement
     sqlite3_stmt* statement;
-    status = sqlite3_prepare_v2(db, updateSQL.str().c_str(), -1, &statement, nullptr);
+    int status = sqlite3_prepare_v2(db, updateSQL.str().c_str(), -1, &statement, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
-        sqlite3_close(db);
         return;
     }
 
@@ -207,45 +187,55 @@ void updateRecordById(int id) {
         cout << "Record updated successfully" << endl;
     }
 
-    // Finalize the statement and close the database
+    // Finalize the statement
     sqlite3_finalize(statement);
-    sqlite3_close(db);
 }
 
+// delete record by ID
 void deleteRecordById(int id) {
-    sqlite3* db;
-    char* errorMessage = nullptr;
-    
-    // Open the database
-    int status = sqlite3_open("passwords.db", &db);
-    if (status != SQLITE_OK) {
-        cerr << "Error opening database: " << sqlite3_errmsg(db) << endl;
+    if (!db) {
+        cerr << "Database is not open." << endl;
         return;
     }
-    
+    char* errorMessage = nullptr;
+
     // Create SQL statement to delete record with the given ID
     stringstream deleteSQL;
     deleteSQL << "DELETE FROM passwords WHERE id = " << id;
-    
+
     // Execute the SQL statement
-    status = sqlite3_exec(db, deleteSQL.str().c_str(), nullptr, 0, &errorMessage);
+    int status = sqlite3_exec(db, deleteSQL.str().c_str(), nullptr, 0, &errorMessage);
     if (status != SQLITE_OK) {
         cerr << "Error deleting record: " << errorMessage << endl;
         sqlite3_free(errorMessage);
     } else {
         cout << "Record deleted successfully" << endl;
     }
-    
-    // Close the database
-    sqlite3_close(db);
 }
 
 
+// close the database connection
+void closeDB() {
+    if (db) {
+        sqlite3_close(db);
+        db = nullptr;
+    }
+}
+
 int main() {
+    db = openDB();
+    if(!db){
+        cerr << "Failed to open Db." << endl;
+        return 1;
+    }
+
     int choice;
     int id;
     string website, password;
 
+    bool keepRunning = true;
+
+    while(keepRunning){
     cout << "Password Security System" << endl;
     cout << "-----------------------" << endl;
     cout << "1. Create a new record" << endl;
@@ -253,6 +243,7 @@ int main() {
     cout << "3. Display record by ID" << endl;
     cout << "4. Update record by ID" << endl;
     cout << "5. Delete record by ID" << endl;
+    cout << "6. Quit" << endl;
     cout << "Enter your choice: ";
     cin >> choice;
     
@@ -288,10 +279,16 @@ int main() {
             cin.ignore();
             deleteRecordById(id);
             break;
+        case 6:
+            keepRunning = false;
+            break;
         default:
             cout << "Invalid choice" << endl;
             break;
     }
+    }
+// Close Db Connaction
+    closeDB();
 
     return 0;
 }
