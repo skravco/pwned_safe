@@ -223,12 +223,15 @@ void updateRecordById(int id) {
         cerr << "Database is not open." << endl;
         return;
     }
-    string password;
+    string newPassword;
 
     cout << "Enter new password: " << endl;
-    getline(cin, password);
+    getline(cin, newPassword);
 
     char* errorMessage = nullptr;
+
+    // Encrypt the new password
+    string encryptedPassword = EncryptPassword(newPassword);
 
     // update password for the given ID
     stringstream updateSQL;
@@ -243,8 +246,19 @@ void updateRecordById(int id) {
     }
 
     // Bind parameters 
-    sqlite3_bind_text(statement, 1, password.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(statement, 2, id);
+    status = sqlite3_bind_text(statement, 1, encryptedPassword.c_str(), -1, SQLITE_STATIC);
+    if (status != SQLITE_OK) {
+	    cerr << "Error binding password parameter: " << sqlite3_errmsg(db) << endl;
+	    sqlite3_finalize(statement);
+	    return;
+    }
+    status = sqlite3_bind_int(statement, 2, id);
+    if (status != SQLITE_OK) {
+	    cerr << "Error binding ID parameter: " << sqlite3_errmsg(db) << endl;
+	    sqlite3_finalize(statement);
+	    return;
+    }
+
 
     // execute the SQL statement
     status = sqlite3_step(statement);
