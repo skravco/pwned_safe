@@ -1,94 +1,46 @@
+#include "database.h"
+#include "cryptopp/aes.h"
+#include "cryptopp/modes.h"
+#include "encrypt.h"
 #include <crypto++/config_int.h>
 #include <crypto++/cryptlib.h>
 #include <crypto++/filters.h>
-#include <fstream>
-#include <iostream>
-#include "cryptopp/aes.h"
-#include "cryptopp/modes.h"
 #include <cryptopp/osrng.h>
 #include <sqlite3.h>
+
+#include <fstream>
+#include <iostream>
 #include <sstream>
 #include <string>
 
 using namespace std;
 using namespace CryptoPP;
 
-sqlite3* db = nullptr;
 byte key[AES::DEFAULT_KEYLENGTH], iv[AES::BLOCKSIZE];
+sqlite3* db = nullptr;
 
-// initialize vector
-void InitializeVector(){
-    AutoSeededRandomPool  prng;
-    prng.GenerateBlock(iv, sizeof(iv));
-}
-
-// prompt user for symmetric key
-bool PromptForSymmetricKey() {
-    cout << "Enter symmetric key: ";
-    cin >> key;
-    return true; // error handling 
-}
-
-// encrypt password using key
-string EncryptPassword(const string& password) {
-    if (!PromptForSymmetricKey()) {
-        cerr << "Failed to get symmetric key." << endl;
-        return ""; // handle error 
-    }
-
-    string encrypted;
-    try {
-        CBC_Mode<AES>::Encryption encryption(key, AES::DEFAULT_KEYLENGTH, iv);
-        StringSource(password, true, new StreamTransformationFilter(encryption, new StringSink(encrypted)));
-    } catch (const CryptoPP::Exception& e) {
-        cerr << "Encryption error: " << e.what() << endl;
-    }
-    return encrypted;
-}
-
-
-// Prompt symmetric key for decryption
-bool PromptForDecryptionKey() {
-    cout << "Enter symmetric key for decryption: ";
-    cin >> key;
-    return true; // error handling 
-}
-
-// decrypt password using key
-string DecryptPassword(const string& encryptedPassword) {
-    if (!PromptForDecryptionKey()) {
-        cerr << "Failed to get symmetric key for decryption." << endl;
-        return ""; // handle error 
-    }
-
-    string decrypted;
-    try {
-        CBC_Mode<AES>::Decryption decryption(key, AES::DEFAULT_KEYLENGTH, iv);
-        StringSource(encryptedPassword, true, new StreamTransformationFilter(decryption, new StringSink(decrypted)));
-    } catch (const CryptoPP::Exception& e) {
-        cerr << "Decryption error: " << e.what() << endl;
-    }
-    return decrypted;
-}
-
-
-// open db or create if not exist
-sqlite3* openDB(){
+sqlite3*
+openDB()
+{
+    // Implementation of database opening
     sqlite3* db;
     int status = sqlite3_open("passwords.db", &db);
-    if (status != SQLITE_OK){
+    if (status != SQLITE_OK) {
         cerr << "Error opening DB: " << sqlite3_errmsg(db) << endl;
         return nullptr;
     }
     return db;
 }
- // create a new record
-void createNewRecord(const string &website, const string &password) {
+
+// create a new record
+void
+createNewRecord(sqlite3* db, const string& website, const string& password)
+{
     if (!db) {
         cerr << "Database is not open." << endl;
         return;
     }
-    char *errorMessage = nullptr;
+    char* errorMessage = nullptr;
 
     // encrypt the password
     string encryptedPassword = EncryptPassword(password);
@@ -100,7 +52,8 @@ void createNewRecord(const string &website, const string &password) {
                             "password TEXT NOT NULL)";
 
     // create the table
-    int status = sqlite3_exec(db, createTableSQL.c_str(), nullptr, 0, &errorMessage);
+    int status =
+      sqlite3_exec(db, createTableSQL.c_str(), nullptr, 0, &errorMessage);
     if (status != SQLITE_OK) {
         cerr << "Error creating table: " << errorMessage << endl;
         sqlite3_free(errorMessage);
@@ -108,26 +61,30 @@ void createNewRecord(const string &website, const string &password) {
     }
 
     // insert data into the table
-    string insertSQL = "INSERT INTO passwords (website, password) VALUES (?, ?)";
+    string insertSQL =
+      "INSERT INTO passwords (website, password) VALUES (?, ?)";
 
     // prepare the SQL statement
-    sqlite3_stmt *stmt;
+    sqlite3_stmt* stmt;
     status = sqlite3_prepare_v2(db, insertSQL.c_str(), -1, &stmt, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
 
-    // bind parameters 
+    // bind parameters
     status = sqlite3_bind_text(stmt, 1, website.c_str(), -1, SQLITE_STATIC);
     if (status != SQLITE_OK) {
-        cerr << "Error binding website parameter: " << sqlite3_errmsg(db) << endl;
+        cerr << "Error binding website parameter: " << sqlite3_errmsg(db)
+             << endl;
         sqlite3_finalize(stmt);
         return;
     }
-    status = sqlite3_bind_text(stmt, 2, encryptedPassword.c_str(), -1, SQLITE_STATIC);
+    status =
+      sqlite3_bind_text(stmt, 2, encryptedPassword.c_str(), -1, SQLITE_STATIC);
     if (status != SQLITE_OK) {
-        cerr << "Error binding password parameter: " << sqlite3_errmsg(db) << endl;
+        cerr << "Error binding password parameter: " << sqlite3_errmsg(db)
+             << endl;
         sqlite3_finalize(stmt);
         return;
     }
@@ -146,7 +103,9 @@ void createNewRecord(const string &website, const string &password) {
 }
 
 // display all records
-void displayAllRecords() {
+void
+displayAllRecords(sqlite3* db)
+{
     if (!db) {
         cerr << "Database is not open." << endl;
         return;
@@ -161,7 +120,7 @@ void displayAllRecords() {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
-    // execute the SQL statement 
+    // execute the SQL statement
     cout << "ID\tWebsite\t\tPassword" << endl;
     cout << "--------------------------------" << endl;
     while ((status = sqlite3_step(stmt)) == SQLITE_ROW) {
@@ -178,8 +137,10 @@ void displayAllRecords() {
     sqlite3_finalize(stmt);
 }
 
-// display record by id 
-void displayRecordById(int id) {
+// display record by id
+void
+displayRecordById(sqlite3* db, int id)
+{
     if (!db) {
         cerr << "Database is not open." << endl;
         return;
@@ -192,13 +153,14 @@ void displayRecordById(int id) {
 
     // prepare the SQL statement
     sqlite3_stmt* stmt;
-    int status = sqlite3_prepare_v2(db, selectSQL.str().c_str(), -1, &stmt, nullptr);
+    int status =
+      sqlite3_prepare_v2(db, selectSQL.str().c_str(), -1, &stmt, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
 
-    // execute the SQL statement 
+    // execute the SQL statement
     cout << "ID\tWebsite\t\tPassword" << endl;
     cout << "--------------------------------" << endl;
     while ((status = sqlite3_step(stmt)) == SQLITE_ROW) {
@@ -218,20 +180,19 @@ void displayRecordById(int id) {
 }
 
 // update record by ID
-void updateRecordById(int id) {
+void
+updateRecordById(sqlite3* db, int id)
+{
     if (!db) {
         cerr << "Database is not open." << endl;
         return;
     }
-    string newPassword;
+    string password;
 
     cout << "Enter new password: " << endl;
-    getline(cin, newPassword);
+    getline(cin, password);
 
     char* errorMessage = nullptr;
-
-    // Encrypt the new password
-    string encryptedPassword = EncryptPassword(newPassword);
 
     // update password for the given ID
     stringstream updateSQL;
@@ -239,26 +200,16 @@ void updateRecordById(int id) {
 
     // prepare the SQL statement
     sqlite3_stmt* statement;
-    int status = sqlite3_prepare_v2(db, updateSQL.str().c_str(), -1, &statement, nullptr);
+    int status =
+      sqlite3_prepare_v2(db, updateSQL.str().c_str(), -1, &statement, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
 
-    // Bind parameters 
-    status = sqlite3_bind_text(statement, 1, encryptedPassword.c_str(), -1, SQLITE_STATIC);
-    if (status != SQLITE_OK) {
-	    cerr << "Error binding password parameter: " << sqlite3_errmsg(db) << endl;
-	    sqlite3_finalize(statement);
-	    return;
-    }
-    status = sqlite3_bind_int(statement, 2, id);
-    if (status != SQLITE_OK) {
-	    cerr << "Error binding ID parameter: " << sqlite3_errmsg(db) << endl;
-	    sqlite3_finalize(statement);
-	    return;
-    }
-
+    // Bind parameters
+    sqlite3_bind_text(statement, 1, password.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(statement, 2, id);
 
     // execute the SQL statement
     status = sqlite3_step(statement);
@@ -273,7 +224,9 @@ void updateRecordById(int id) {
 }
 
 // delete record by ID
-void deleteRecordById(int id) {
+void
+deleteRecordById(sqlite3* db, int id)
+{
     if (!db) {
         cerr << "Database is not open." << endl;
         return;
@@ -285,7 +238,8 @@ void deleteRecordById(int id) {
     deleteSQL << "DELETE FROM passwords WHERE id = " << id;
 
     // Execute the SQL statement
-    int status = sqlite3_exec(db, deleteSQL.str().c_str(), nullptr, 0, &errorMessage);
+    int status =
+      sqlite3_exec(db, deleteSQL.str().c_str(), nullptr, 0, &errorMessage);
     if (status != SQLITE_OK) {
         cerr << "Error deleting record: " << errorMessage << endl;
         sqlite3_free(errorMessage);
@@ -294,7 +248,9 @@ void deleteRecordById(int id) {
     }
 }
 
-void decryptRecordById(int id) {
+void
+decryptRecordById(sqlite3* db, int id)
+{
     if (!db) {
         cerr << "Db is not open." << endl;
         return;
@@ -308,13 +264,14 @@ void decryptRecordById(int id) {
 
     // prepare the SQL statement
     sqlite3_stmt* stmt;
-    int status = sqlite3_prepare_v2(db, selectSQL.str().c_str(), -1, &stmt, nullptr);
+    int status =
+      sqlite3_prepare_v2(db, selectSQL.str().c_str(), -1, &stmt, nullptr);
     if (status != SQLITE_OK) {
         cerr << "Error preparing SQL statement: " << sqlite3_errmsg(db) << endl;
         return;
     }
 
-    // Execute the SQL statement 
+    // Execute the SQL statement
     cout << "ID\tWebsite\t\tPassword" << endl;
     cout << "--------------------------------" << endl;
     while ((status = sqlite3_step(stmt)) == SQLITE_ROW) {
@@ -323,7 +280,8 @@ void decryptRecordById(int id) {
         const unsigned char* encryptedPassword = sqlite3_column_text(stmt, 2);
 
         // Convert const unsigned char* to string
-        string encryptedPasswordStr(reinterpret_cast<const char*>(encryptedPassword));
+        string encryptedPasswordStr(
+          reinterpret_cast<const char*>(encryptedPassword));
 
         // Decrypt the password
         // Prompt for symmetric key for decryption
@@ -335,8 +293,14 @@ void decryptRecordById(int id) {
 
         string decryptedPassword;
         try {
-            CBC_Mode<AES>::Decryption decryption(key, AES::DEFAULT_KEYLENGTH, iv);
-            StringSource(encryptedPasswordStr, true, new StreamTransformationFilter(decryption, new StringSink(decryptedPassword),StreamTransformationFilter::NO_PADDING));
+            CBC_Mode<AES>::Decryption decryption(
+              key, AES::DEFAULT_KEYLENGTH, iv);
+            StringSource(encryptedPasswordStr,
+                         true,
+                         new StreamTransformationFilter(
+                           decryption,
+                           new StringSink(decryptedPassword),
+                           StreamTransformationFilter::NO_PADDING));
         } catch (const CryptoPP::Exception& e) {
             cerr << "Decryption error: " << e.what() << endl;
             sqlite3_finalize(stmt);
@@ -356,93 +320,12 @@ void decryptRecordById(int id) {
     sqlite3_finalize(stmt);
 }
 
-
-
-
 // close the database connection
-void closeDB() {
+void
+closeDB()
+{
     if (db) {
         sqlite3_close(db);
         db = nullptr;
     }
 }
-
-int main() {
-    InitializeVector();
-
-    db = openDB();
-    if(!db){
-        cerr << "Failed to open Db." << endl;
-        return 1;
-    }
-
-    int choice;
-    int id;
-    string website, password;
-
-    bool keepRunning = true;
-
-    while(keepRunning){
-        cout << "Password Security System" << endl;
-        cout << "-----------------------" << endl;
-        cout << "1. Create a new record" << endl;
-        cout << "2. Display all records" << endl;
-        cout << "3. Display record by ID" << endl;
-        cout << "4. Update record by ID" << endl;
-        cout << "5. Delete record by ID" << endl;
-        cout << "6. Decrypt record by ID" << endl;
-        cout << "7. Quit" << endl;
-        cout << "Enter your choice: ";
-        cin >> choice;
-        
-        // Clear the newline character from the input buffer
-        cin.ignore();
-
-        switch (choice) {
-            case 1:
-                cout << "Enter website: ";
-                getline(cin, website);
-                cout << "Enter password: ";
-                getline(cin, password);
-                createNewRecord(website, password);
-                break;
-            case 2:
-                displayAllRecords();
-                break;
-            case 3:
-                cout << "Enter ID: ";
-                cin >> id;
-                cin.ignore();
-                displayRecordById(id);
-                break;
-            case 4:
-                cout << "Enter ID: ";
-                cin >> id;
-                cin.ignore();
-                updateRecordById(id);
-                break;
-            case 5:
-                cout << "Enter ID: ";
-                cin >> id;
-                cin.ignore();
-                deleteRecordById(id);
-                break;
-            case 6:
-                cout << "Enter ID: ";
-                cin >> id;
-                cin.ignore();
-                decryptRecordById(id);
-                break;
-            case 7:
-                keepRunning = false;
-                break;
-            default:
-                cout << "Invalid choice" << endl;
-                break;
-        }
-    }
-    closeDB();
-
-    return 0;
-}
-
