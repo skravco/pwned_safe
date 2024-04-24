@@ -24,21 +24,31 @@ The password security system provides the following functionalities:
 
 The program relies on the following external dependencies:
 
-- **SQLite3**: For database storage.
+**SQLite3**: For database storage.
+```bash
 sudo apt-get install libsqlite3-dev
+```
 
-- **Crypto++**: For encryption and decryption of passwords.
+**Crypto++**: For encryption and decryption of passwords.
+```bash
 sudo apt-get install libcrypto++-dev
+```
 
 ## Compilation
 
 To compile the program, make sure you have `g++` installed on your system. Then, run the following command in the terminal:
 
 ```bash
-g++ -std=c++11 -o ps main.cpp database.cpp encrypt.cpp -lsqlite3 -lcryptopp```
+g++ -std=c++11 -o ps main.cpp database.cpp encrypt.cpp -lsqlite3 -lcryptopp
+```
 This command compiles the program and links it with the SQLite3 and Crypto++ libraries.
 
 ## Usage
 
-After compiling the program, execute the generated executable (ps) to run the password security system. Follow the on-screen prompts to utilize the various functionalities provided by the system.
+After compiling the program, run the generated executable:
+```bash
+./ps
+```
+Follow the on-screen prompts to utilize the various functionalities provided by the system.
+
 
